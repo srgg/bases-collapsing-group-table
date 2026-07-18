@@ -2,6 +2,7 @@ import {
   AbstractInputSuggest,
   App,
   BasesEntry,
+  BasesView,
   BasesEntryGroup,
   BasesPropertyId,
   BasesViewConfig,
@@ -84,6 +85,7 @@ class ListSuggest extends AbstractInputSuggest<string> {
 
 export interface BuildTableArgs {
   app: App
+  view: BasesView
   groups: BasesEntryGroup[]
   columns: BasesPropertyId[]
   config: BasesViewConfig
@@ -103,7 +105,7 @@ export interface BuildTableArgs {
 }
 
 const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
-  const { app, groups, columns, config, isGrouped, settings, keys, collapsed, applyOpenDefault, markTouched } =
+  const { app, view, groups, columns, config, isGrouped, settings, keys, collapsed, applyOpenDefault, markTouched } =
     args
 
   const allKeys = keys
@@ -606,13 +608,14 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         showRead()
       }
       field.addEventListener('blur', commit)
-      field.addEventListener('keydown', (evt: KeyboardEvent) => {
+      field.addEventListener('keydown', (evt: Event) => {
+        const keyEvent = evt as KeyboardEvent
         // In the textarea, Enter inserts a newline; commit on blur instead.
-        if (evt.key === 'Enter' && type !== 'text') {
-          evt.preventDefault()
+        if (keyEvent.key === 'Enter' && type !== 'text') {
+          keyEvent.preventDefault()
           field.blur()
-        } else if (evt.key === 'Escape') {
-          evt.preventDefault()
+        } else if (keyEvent.key === 'Escape') {
+          keyEvent.preventDefault()
           done = true
           showRead()
         }
@@ -791,14 +794,28 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     if (col === 'file.name') {
       const file = entry.file
       if (!file) return
-      const link = inner.createEl('a', { cls: 'internal-link bcgt-file-link', text: file.basename })
+      
+      const link = inner.createEl('a', { 
+        cls: 'internal-link bcgt-file-link', 
+        text: file.basename 
+      })
+
       link.addEventListener('click', (evt) => {
         evt.preventDefault()
         const newLeaf = evt.ctrlKey || evt.metaKey
         void app.workspace.openLinkText(file.path, file.path, newLeaf)
       })
-      return
-    }
+      link.addEventListener('mouseenter', (evt) => {
+        view.app.workspace.trigger('hover-link', {
+          event: evt,
+          source: view.type,
+          hoverParent: view,
+          targetEl: link,
+          linktext: file.path,
+          sourcePath: file.path,
+        })
+        return
+      })
 
     const editType = editTypeOf.get(col)
 
@@ -1028,5 +1045,5 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     })
   }
 }
-
+}
 export default buildTable
