@@ -820,6 +820,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         })
         return
       })
+      return
     }
 
     const editType = editTypeOf.get(col)
