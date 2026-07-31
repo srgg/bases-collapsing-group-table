@@ -44,7 +44,7 @@ const IMAGE_EXTS = new Set([
 // (tree + relationship maps) with the table; the fold engine mirrors the table's
 // logic so collapse/accordion/open-behavior behave identically.
 const buildCards = (container: HTMLElement, args: BuildTableArgs): void => {
-  const { app, groups, columns, config, isGrouped, settings, keys, collapsed, applyOpenDefault, markTouched } =
+  const { app, view, groups, columns, config, isGrouped, settings, keys, collapsed, applyOpenDefault, markTouched } =
     args
 
   let topLevelKeys: string[] = keys
@@ -133,23 +133,23 @@ const buildCards = (container: HTMLElement, args: BuildTableArgs): void => {
       if (dateFormat && value instanceof DateValue) {
         const formatted = formatDate(value.toString(), dateFormat)
         if (formatted !== null) {
-          el.setText(formatted)
+          el.textContent = formatted
           return
         }
       }
       value.renderTo(el, app.renderContext)
     } catch {
-      el.setText(value.toString())
+      el.textContent = value.toString()
     }
   }
 
   // ---- fold engine (mirrors build-table) ----
   const applyAll = (): void => {
     for (const { el, ancestors } of rowMeta) {
-      el.toggleClass('bcgt-hidden', ancestors.some((k) => collapsed.has(k)))
+      el.classList.toggle('bcgt-hidden', ancestors.some((k) => collapsed.has(k)))
     }
     for (const { key, el } of chevrons) {
-      el.toggleClass('bcgt-chev-collapsed', collapsed.has(key))
+      el.classList.toggle('bcgt-chev-collapsed', collapsed.has(key))
     }
   }
   const applyOpenBehavior = (key: string): void => {
@@ -310,6 +310,16 @@ const buildCards = (container: HTMLElement, args: BuildTableArgs): void => {
           // A note with a cover → the cover just opens the note.
           imgBox.addClass('bcgt-card-img-link')
           imgBox.addEventListener('click', openFile)
+          imgBox.addEventListener('mouseenter', (evt) => {
+            view.app.workspace.trigger('hover-link', {
+              event: evt,
+              source: view.type,
+              hoverParent: view,
+              targetEl: imgBox ?? card,
+              linktext: file.path,
+              sourcePath: file.path,
+            })
+          })
         }
       } else {
         const v = valueOf(entry, imageProp)
@@ -341,12 +351,25 @@ const buildCards = (container: HTMLElement, args: BuildTableArgs): void => {
     // one it falls back to showing below.
     if (file && titleMode !== 'hide') {
       const overlay = titleMode === 'overlay' && imgBox !== null
-      const host = overlay ? imgBox! : card
+      const host = overlay ? (imgBox ?? card) : card
       const cls = overlay
         ? 'internal-link bcgt-card-title bcgt-card-title-overlay'
         : 'internal-link bcgt-card-title'
-      const title = host.createEl('a', { cls, text: file.basename })
+      const title = host.createEl('a', { 
+        cls,
+        text: file.basename
+      })
       title.addEventListener('click', openFile)
+      title.addEventListener("mouseenter", (evt) => {
+      view.app.workspace.trigger("hover-link", {
+          event: evt,
+          source: view.type,
+          hoverParent: view,
+          targetEl: title,
+          linktext: file.path,
+          sourcePath: file.path,
+      })
+  })
     }
     const fields = card.createDiv('bcgt-card-fields')
     for (const col of columns) {

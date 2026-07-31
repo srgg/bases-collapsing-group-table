@@ -2,6 +2,7 @@ import {
   AbstractInputSuggest,
   App,
   BasesEntry,
+  BasesView,
   BasesEntryGroup,
   BasesPropertyId,
   BasesViewConfig,
@@ -84,6 +85,7 @@ class ListSuggest extends AbstractInputSuggest<string> {
 
 export interface BuildTableArgs {
   app: App
+  view: BasesView
   groups: BasesEntryGroup[]
   columns: BasesPropertyId[]
   config: BasesViewConfig
@@ -103,7 +105,8 @@ export interface BuildTableArgs {
 }
 
 const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
-  const { app, groups, columns, config, isGrouped, settings, keys, collapsed, applyOpenDefault, markTouched } =
+  console.log("buildTable started");
+  const { app, view, groups, columns, config, isGrouped, settings, keys, collapsed, applyOpenDefault, markTouched } =
     args
 
   const allKeys = keys
@@ -241,6 +244,8 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     }
   }
 
+  console.log("isGrouped =", isGrouped);
+
   // ---- table head (column names) ----
   const rowHeightClass: Record<string, string> = {
     short: 'bcgt-rows-short',
@@ -251,7 +256,8 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   }
   const table = container.createEl('table', {
     cls: `bcgt-table ${rowHeightClass[settings.rowHeight] ?? 'bcgt-rows-short'}`,
-  })
+  });
+  console.log(table);
 
   // ---- column widths (shares the native table's `columnSize` map) ----
   const readColumnSize = (): Record<string, number> => {
@@ -606,13 +612,14 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         showRead()
       }
       field.addEventListener('blur', commit)
-      field.addEventListener('keydown', (evt: KeyboardEvent) => {
+      field.addEventListener('keydown', (evt: Event) => {
+        const keyEvent = evt as KeyboardEvent
         // In the textarea, Enter inserts a newline; commit on blur instead.
-        if (evt.key === 'Enter' && type !== 'text') {
-          evt.preventDefault()
+        if (keyEvent.key === 'Enter' && type !== 'text') {
+          keyEvent.preventDefault()
           field.blur()
-        } else if (evt.key === 'Escape') {
-          evt.preventDefault()
+        } else if (keyEvent.key === 'Escape') {
+          keyEvent.preventDefault()
           done = true
           showRead()
         }
@@ -791,11 +798,27 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     if (col === 'file.name') {
       const file = entry.file
       if (!file) return
-      const link = inner.createEl('a', { cls: 'internal-link bcgt-file-link', text: file.basename })
+      
+      const link = inner.createEl('a', { 
+        cls: 'internal-link bcgt-file-link', 
+        text: file.basename 
+      })
+
       link.addEventListener('click', (evt) => {
         evt.preventDefault()
         const newLeaf = evt.ctrlKey || evt.metaKey
         void app.workspace.openLinkText(file.path, file.path, newLeaf)
+      })
+      link.addEventListener('mouseenter', (evt) => {
+        view.app.workspace.trigger('hover-link', {
+          event: evt,
+          source: view.type,
+          hoverParent: view,
+          targetEl: link,
+          linktext: file.path,
+          sourcePath: file.path,
+        })
+        return
       })
       return
     }
@@ -961,6 +984,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   }
 
   if (isGrouped && (settings.subGroup || settings.subCols.length > 0)) {
+    console.log("creating root tbody");
     // Build the grouped tree + relationship maps (shared, view-agnostic core).
     const { roots, topLevelKeys: tlk, rootEntries } = buildGroupTree({
       groups,
@@ -991,15 +1015,19 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       }
     }
     for (const root of roots) {
+      console.log("rendering root", root);
       const tbody = table.createEl('tbody', { cls: 'bcgt-group' })
-      renderNode(tbody, root, 0, [], [], '', true)
+      console.log("tbody count (nested loop):", table.querySelectorAll("tbody").length);
+      renderNode(tbody, root, 0, [], [], '', true);
     }
   } else {
     // Flat: one tbody per Bases group (sub-grouping off, or no groupBy). No tree
     // connectors here — the empty prefix keeps rows un-railed.
     groups.forEach((group, gi) => {
+      console.log("rendering flat group", gi, group);
       const topKey = keys[gi]
       const tbody = table.createEl('tbody', { cls: 'bcgt-group' })
+      console.log("tbody count (flat loop):", table.querySelectorAll("tbody").length);
       let baseAncestors: string[] = []
       if (isGrouped) {
         const hasKey = group.hasKey() && group.key
@@ -1021,12 +1049,11 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   // Tag pills (rendered via renderTo) finish sizing just after the first layout
   // pass, leaving list cells collapsed to one line until something forces a
   // reflow. Nudge a layout flush on the next frame so they wrap immediately.
-  const win = table.ownerDocument.defaultView
+  const win = table.ownerDocument.defaultView;
   if (win) {
     win.requestAnimationFrame(() => {
       void table.offsetHeight
-    })
+    });
   }
-}
-
+};
 export default buildTable

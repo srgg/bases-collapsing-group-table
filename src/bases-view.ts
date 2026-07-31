@@ -127,6 +127,7 @@ export class GroupTableView extends BasesView {
     try {
       this.build(this.viewContainerEl, {
         app: this.app,
+        view: this,
         groups,
         columns,
         config: this.config,
