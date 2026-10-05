@@ -146,7 +146,11 @@ export class GroupTableView extends BasesView {
         applyOpenDefault,
         markTouched: () => {
           this.userTouched = true
-          this.saveFold()
+          // Device storage is cheap, so save right after this click's fold
+          // change (callers mark first, then change the folds): a click that
+          // opens a note leaves the view before a delayed save would run.
+          if (this.foldOnDevice) queueMicrotask(() => this.persistFold())
+          else this.saveFold()
         },
       })
     } catch (e) {
