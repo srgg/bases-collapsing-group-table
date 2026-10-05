@@ -910,14 +910,37 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   // Open a link. With "Open notes in the current view mode" on, use the view mode
   // (Reading, Live Preview, Source) of the note this table is embedded in; else,
   // or when the table isn't inside a Markdown note, Obsidian's default.
-  const openLink = (link: string, sourcePath: string, newLeaf: boolean): void => {
+  // After opening a note at a heading or block, unfold the collapsed callout
+  // there (found by Obsidian's flash highlight, else by its title), so the
+  // reader sees what they clicked.
+  const unfoldTarget = (label: string): void => {
+    window.setTimeout(() => {
+      const view = app.workspace.getActiveViewOfType(MarkdownView)
+      if (!view) return
+      const root = view.containerEl
+      const flashing = root.querySelector('.is-flashing')
+      const callout =
+        flashing?.closest('.callout') ??
+        flashing?.querySelector('.callout') ??
+        Array.from(root.querySelectorAll('.callout')).find(
+          (c) => c.querySelector('.callout-title-inner')?.textContent?.trim() === label,
+        )
+      if (callout?.classList.contains('is-collapsed')) {
+        callout.querySelector<HTMLElement>('.callout-title')?.click()
+      }
+    }, 300)
+  }
+
+  const openLink = (link: string, sourcePath: string, newLeaf: boolean, label = ''): void => {
     let state: OpenViewState | undefined
     if (settings.keepViewMode) app.workspace.iterateAllLeaves((leaf) => {
       if (state || !(leaf.view instanceof MarkdownView) || !leaf.view.containerEl.contains(container)) return
       const st = leaf.view.getState() as { mode?: string; source?: boolean }
       state = { state: { mode: st.mode, source: st.source } }
     })
-    void app.workspace.openLinkText(link, sourcePath, newLeaf, state)
+    void app.workspace.openLinkText(link, sourcePath, newLeaf, state).then(() => {
+      if (label) unfoldTarget(label)
+    })
   }
 
   // ---- note outline: a note's headings and block-ID'd blocks as child rows ----
@@ -1005,13 +1028,13 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         stack.push([it.depth, headingKey])
         tr.addClass('bcgt-note-row')
         bindNodeClicks(tr, 'a:not(.bcgt-outline-link)', headingKey, (evt) =>
-          openLink(path + it.link, path, evt.ctrlKey || evt.metaKey),
+          openLink(path + it.link, path, evt.ctrlKey || evt.metaKey, a.textContent ?? ''),
         )
       }
       const a = td.createDiv('bcgt-cell-content').createEl('a', { cls: 'internal-link bcgt-outline-link', text: it.label })
       const open = (evt: MouseEvent): void => {
         evt.preventDefault()
-        openLink(path + it.link, path, evt.ctrlKey || evt.metaKey)
+        openLink(path + it.link, path, evt.ctrlKey || evt.metaKey, a.textContent ?? '')
       }
       // Foldable headings: the row handles clicks (click folds, double click
       // opens). Leaves (blocks, headings without children): click opens.
