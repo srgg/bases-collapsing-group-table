@@ -184,6 +184,8 @@ export class GroupTableView extends BasesView {
         : 'first',
       // Per-view value wins; blank inherits the global setting.
       dateFormat: (typeof df === 'string' && df.trim()) || this.getGlobalDateFormat(),
+      noteOutline: this.config.get('noteOutline') === true,
+      keepViewMode: this.config.get('keepViewMode') === true,
     }
   }
 

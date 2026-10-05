@@ -10,6 +10,8 @@ import {
   DateValue,
   DurationValue,
   FileValue,
+  MarkdownView,
+  OpenViewState,
   ListValue,
   NumberValue,
   StringValue,
@@ -19,6 +21,7 @@ import {
 import type { TableSettings } from './types'
 import { buildGroupTree, cleanLabel, groupByNames, nodeTotal, type TreeNode } from './group-tree'
 import { formatDate } from './format-date'
+import { blockLabel, noteOutlineItems, type OutlineItem } from './note-outline'
 
 // Inline-editable note-property types (written back to frontmatter).
 type EditType = 'bool' | 'number' | 'date' | 'text' | 'list'
@@ -103,6 +106,10 @@ export interface BuildTableArgs {
   // the start-collapsed default and preserves the user's choice.
   markTouched: () => void
 }
+
+// Note outline fold keys each view has already shown, keyed by the view's
+// fold-state set (one per view instance), so new outlines start folded.
+const seenNoteKeys = new WeakMap<Set<string>, Set<string>>()
 
 const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   console.log("buildTable started");
@@ -804,10 +811,13 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         text: file.basename 
       })
 
+      // A note whose outline folds behaves like a tree node: a single click
+      // folds it (the row handles that), a double click opens it.
+      const foldable = (): boolean => link.closest('.bcgt-note-row') !== null
       link.addEventListener('click', (evt) => {
         evt.preventDefault()
-        const newLeaf = evt.ctrlKey || evt.metaKey
-        void app.workspace.openLinkText(file.path, file.path, newLeaf)
+        if (foldable()) return
+        openLink(file.path, file.path, evt.ctrlKey || evt.metaKey)
       })
       link.addEventListener('mouseenter', (evt) => {
         view.app.workspace.trigger('hover-link', {
@@ -867,6 +877,8 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   ): void => {
     const row = tbody.createEl('tr', { cls: 'bcgt-row' })
     rowMeta.push({ el: row, ancestors })
+    const outline = settings.noteOutline && entry.file ? noteOutlineItems(app.metadataCache.getCache(entry.file.path)) : []
+    const noteKey = outline.length > 0 && entry.file ? `${NOTE_KEY}${entry.file.path}` : ''
     columns.forEach((col, ci) => {
       const td = row.createEl('td', { cls: 'bcgt-cell' })
       if (ci === 0 && treePrefix) {
@@ -876,9 +888,146 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         td.addClass('bcgt-rail')
         td.style.setProperty('--segs', String(treePrefix.length / 4))
         renderTreeRail(td, treePrefix)
+        if (ci === 0 && noteKey) renderNoteToggle(td, noteKey)
         renderCell(td, td, entry, col)
       } else {
+        if (ci === 0 && noteKey) renderNoteToggle(td, noteKey)
         renderCell(td, td, entry, col)
+      }
+    })
+    if (noteKey && entry.file) {
+      // Like a group header: clicking the row (outside links and editors) folds
+      // or unfolds the note's outline.
+      row.addClass('bcgt-note-row')
+      const path = entry.file.path
+      bindNodeClicks(row, 'a:not(.bcgt-file-link), input, textarea, button, .bcgt-cell-editable', noteKey, (evt) =>
+        openLink(path, path, evt.ctrlKey || evt.metaKey),
+      )
+      renderNoteOutline(tbody, entry.file.path, outline, ancestors, noteKey, treePrefix)
+    }
+  }
+
+  // Open a link. With "Open notes in the current view mode" on, use the view mode
+  // (Reading, Live Preview, Source) of the note this table is embedded in; else,
+  // or when the table isn't inside a Markdown note, Obsidian's default.
+  const openLink = (link: string, sourcePath: string, newLeaf: boolean): void => {
+    let state: OpenViewState | undefined
+    if (settings.keepViewMode) app.workspace.iterateAllLeaves((leaf) => {
+      if (state || !(leaf.view instanceof MarkdownView) || !leaf.view.containerEl.contains(container)) return
+      const st = leaf.view.getState() as { mode?: string; source?: boolean }
+      state = { state: { mode: st.mode, source: st.source } }
+    })
+    void app.workspace.openLinkText(link, sourcePath, newLeaf, state)
+  }
+
+  // ---- note outline: a note's headings and block-ID'd blocks as child rows ----
+  // Fold keys for notes use a prefix that can't occur in group keys.
+  const NOTE_KEY = '\u0002note:'
+  const noteKeys: string[] = []
+  // Fold or unfold one note or outline-heading node.
+  const toggleNode = (key: string): void => {
+    markTouched()
+    if (collapsed.has(key)) {
+      collapsed.delete(key)
+    } else {
+      collapsed.add(key)
+      for (const d of descendants.get(key) ?? []) collapsed.add(d)
+    }
+    applyAll()
+  }
+
+  // A foldable node row: a single click folds or unfolds it, a double click
+  // opens it. The fold waits a moment so a double click doesn't also fold.
+  const bindNodeClicks = (
+    row: HTMLElement,
+    ignore: string,
+    key: string,
+    open: (evt: MouseEvent) => void,
+  ): void => {
+    let timer = 0
+    row.addEventListener('click', (evt) => {
+      if ((evt.target as HTMLElement).closest(ignore)) return
+      evt.preventDefault()
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => toggleNode(key), 250)
+    })
+    row.addEventListener('dblclick', (evt) => {
+      if ((evt.target as HTMLElement).closest(ignore)) return
+      evt.preventDefault()
+      window.clearTimeout(timer)
+      open(evt)
+    })
+  }
+
+  // Fold marker in a note's (or outline heading's) first cell.
+  const renderNoteToggle = (td: HTMLElement, noteKey: string): void => {
+    allFoldKeys.add(noteKey)
+    noteKeys.push(noteKey)
+    const chevron = td.createSpan('bcgt-chevron bcgt-note-chevron')
+    setIcon(chevron, 'chevron-down')
+    chevrons.push({ key: noteKey, el: chevron })
+  }
+
+  // One row per outline item, spanning all columns, indented under the note.
+  // Block labels start as the block ID and become the callout title (or the
+  // block's first line) once the file text is read.
+  const renderNoteOutline = (
+    tbody: HTMLElement,
+    path: string,
+    items: OutlineItem[],
+    ancestors: string[],
+    noteKey: string,
+    treePrefix: string,
+  ): void => {
+    // Ancestor folds also fold the outline (closing a group hides it).
+    for (const a of ancestors) descendants.get(a)?.push(noteKey)
+    descendants.set(noteKey, [])
+    const base = treePrefix.length / 4
+    const links: { el: HTMLElement; line: number }[] = []
+    // Open headings above the current item: [depth, fold key].
+    const stack: [number, string][] = []
+    items.forEach((it, idx) => {
+      while (stack.length > 0 && stack[stack.length - 1][0] >= it.depth) stack.pop()
+      const above = stack.map(([, k]) => k)
+      const tr = tbody.createEl('tr', { cls: 'bcgt-row bcgt-outline-row' })
+      rowMeta.push({ el: tr, ancestors: [...ancestors, noteKey, ...above] })
+      const td = tr.createEl('td', { cls: 'bcgt-cell bcgt-rail' })
+      td.colSpan = columns.length
+      td.style.setProperty('--segs', String(base + it.depth))
+      renderTreeRail(td, '    '.repeat(base + it.depth))
+      const isHeading = !it.isBlock
+      const next = items[idx + 1]
+      const headingKey = isHeading && next && next.depth > it.depth ? `${noteKey}#${it.line}` : ''
+      if (headingKey) {
+        renderNoteToggle(td, headingKey)
+        for (const k of [...ancestors, noteKey, ...above]) descendants.get(k)?.push(headingKey)
+        descendants.set(headingKey, [])
+        stack.push([it.depth, headingKey])
+        tr.addClass('bcgt-note-row')
+        bindNodeClicks(tr, 'a:not(.bcgt-outline-link)', headingKey, (evt) =>
+          openLink(path + it.link, path, evt.ctrlKey || evt.metaKey),
+        )
+      }
+      const a = td.createDiv('bcgt-cell-content').createEl('a', { cls: 'internal-link bcgt-outline-link', text: it.label })
+      const open = (evt: MouseEvent): void => {
+        evt.preventDefault()
+        openLink(path + it.link, path, evt.ctrlKey || evt.metaKey)
+      }
+      // Foldable headings: the row handles clicks (click folds, double click
+      // opens). Leaves (blocks, headings without children): click opens.
+      a.addEventListener('click', (evt) => {
+        if (headingKey) evt.preventDefault()
+        else open(evt)
+      })
+      if (!isHeading) links.push({ el: a, line: it.line })
+    })
+    const file = app.vault.getFileByPath(path)
+    if (links.length === 0 || !file) return
+    void app.vault.cachedRead(file).then((text) => {
+      const lines = text.split('\n')
+      for (const { el, line } of links) {
+        const label = blockLabel(lines, line)
+        if (label) el.setText(label)
       }
     })
   }
@@ -1037,6 +1186,17 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       }
       for (const entry of group.entries) renderDataRow(tbody, entry, baseAncestors, '')
     })
+  }
+
+  // A note outline starts folded the first time this view shows it.
+  let seen = seenNoteKeys.get(collapsed)
+  if (!seen) {
+    seen = new Set<string>()
+    seenNoteKeys.set(collapsed, seen)
+  }
+  for (const k of noteKeys) {
+    if (applyOpenDefault || !seen.has(k)) collapsed.add(k)
+    seen.add(k)
   }
 
   // Forget any collapsed keys whose group/sub-group no longer exists.

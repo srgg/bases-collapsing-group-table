@@ -59,6 +59,18 @@ export default class CollapsingGroupTablePlugin extends Plugin {
           },
           {
             type: 'toggle',
+            displayName: "Show each note's headings and blocks as foldable rows",
+            key: 'noteOutline',
+            default: false,
+          },
+          {
+            type: 'toggle',
+            displayName: 'Open notes in the current view mode',
+            key: 'keepViewMode',
+            default: false,
+          },
+          {
+            type: 'toggle',
             displayName: 'Split groupBy value on "/" to nest',
             key: 'subGroup',
             default: false,

@@ -948,3 +948,18 @@
     opacity: 0.85;
   }
 }
+
+/* ---- note outline (headings and blocks as child rows) ---- */
+.bcgt-note-chevron {
+  float: left;
+  margin-right: var(--size-4-1);
+  cursor: pointer;
+}
+
+.bcgt-outline-row .bcgt-cell {
+  color: var(--text-muted);
+}
+
+.bcgt-note-row {
+  cursor: pointer;
+}
