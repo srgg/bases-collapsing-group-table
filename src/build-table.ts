@@ -1239,6 +1239,10 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
 
   applyAll()
 
+  // Bring the last opened row into view if it is off screen (no jump otherwise).
+  const marked = table.querySelector<HTMLElement>('.bcgt-last-opened:not(.bcgt-hidden)')
+  if (marked) window.requestAnimationFrame(() => marked.scrollIntoView({ block: 'nearest' }))
+
   // Tag pills (rendered via renderTo) finish sizing just after the first layout
   // pass, leaving list cells collapsed to one line until something forces a
   // reflow. Nudge a layout flush on the next frame so they wrap immediately.
