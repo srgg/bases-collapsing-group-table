@@ -1003,7 +1003,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       const tbody = table.createEl('tbody', { cls: 'bcgt-group' })
       for (const entry of rootEntries) renderDataRow(tbody, entry, [], '')
     }
-    if (settings.rootEntries !== 'bottom') renderRootEntries()
+    if (settings.rootEntries === 'top') renderRootEntries()
     // Initialise sub-group folds per "when opening a group" for the default
     // (unsaved) state: open top groups get the open-behavior applied; collapsed
     // ones have their descendants collapsed too.
@@ -1016,11 +1016,19 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
         }
       }
     }
-    for (const root of roots) {
-      console.log("rendering root", root);
+    // 'sorted' interleaves ungrouped entries with the top-level groups by name
+    // (group label vs. file name), e.g. "03 Glossary" between "02 …" and "04 …".
+    const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare
+    type Item = { name: string; root?: TreeNode; entry?: BasesEntry }
+    const items: Item[] = roots.map((root) => ({ name: root.label, root }))
+    if (settings.rootEntries === 'sorted') {
+      for (const entry of rootEntries) items.push({ name: entry.file?.basename ?? '', entry })
+      items.sort((a, b) => byName(a.name, b.name))
+    }
+    for (const item of items) {
       const tbody = table.createEl('tbody', { cls: 'bcgt-group' })
-      console.log("tbody count (nested loop):", table.querySelectorAll("tbody").length);
-      renderNode(tbody, root, 0, [], [], '', true);
+      if (item.root) renderNode(tbody, item.root, 0, [], [], '', true)
+      else if (item.entry) renderDataRow(tbody, item.entry, [], '')
     }
     if (settings.rootEntries === 'bottom') renderRootEntries()
   } else {

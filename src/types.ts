@@ -25,7 +25,8 @@ export interface TableSettings {
   // this level's name; the tree rail already shows the hierarchy).
   nestedLabel: string
   // Where entries with an empty group value (files in the root, or in the
-  // stripped folder) render: 'top' (above the groups) or 'bottom' (below them).
+  // stripped folder) render: 'top' (above the groups), 'bottom' (below them), or
+  // 'sorted' (mixed with the top-level groups, ordered by name).
   rootEntries: string
   // Keep fold state on this device (localStorage) instead of the .base file.
   foldOnDevice: boolean

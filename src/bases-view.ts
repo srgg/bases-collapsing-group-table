@@ -195,7 +195,9 @@ export class GroupTableView extends BasesView {
       // Per-view value wins; blank inherits the global setting.
       dateFormat: (typeof df === 'string' && df.trim()) || this.getGlobalDateFormat(),
       nestedLabel: this.config.get('nestedLabel') === 'own' ? 'own' : 'path',
-      rootEntries: this.config.get('rootEntries') === 'bottom' ? 'bottom' : 'top',
+      rootEntries: ['bottom', 'sorted'].includes(this.config.get('rootEntries') as string)
+        ? (this.config.get('rootEntries') as string)
+        : 'top',
       foldOnDevice: this.config.get('foldOnDevice') === true,
     }
   }

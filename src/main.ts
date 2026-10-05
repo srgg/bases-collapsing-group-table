@@ -127,6 +127,7 @@ export default class CollapsingGroupTablePlugin extends Plugin {
           options: {
             top: 'Above the groups',
             bottom: 'Below the groups',
+            sorted: 'Mixed with the groups, by name',
           },
         },
       ],
