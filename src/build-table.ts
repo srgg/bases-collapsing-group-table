@@ -107,9 +107,12 @@ export interface BuildTableArgs {
   markTouched: () => void
 }
 
-// Note outline fold keys each view has already shown, keyed by the view's
-// fold-state set (one per view instance), so new outlines start folded.
-const seenNoteKeys = new WeakMap<Set<string>, Set<string>>()
+// Marker kept in the fold state for each note or outline heading the reader
+// opened, so it stays open across re-renders; without it, nodes start folded.
+const OPEN_MARK = '\u0003open:'
+
+// Per view (by name): the link last opened from it, highlighted on return.
+const lastOpened = new Map<string, string>()
 
 const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   console.log("buildTable started");
@@ -218,6 +221,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     expandBtn.addEventListener('click', () => {
       markTouched()
       collapsed.clear()
+      for (const k of noteKeys) collapsed.add(OPEN_MARK + k)
       applyAll()
     })
     collapseBtn.addEventListener('click', () => {
@@ -877,6 +881,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   ): void => {
     const row = tbody.createEl('tr', { cls: 'bcgt-row' })
     rowMeta.push({ el: row, ancestors })
+    if (entry.file && lastOpened.get(config.name) === entry.file.path) row.addClass('bcgt-last-opened')
     const outline = settings.noteOutline && entry.file ? noteOutlineItems(app.metadataCache.getCache(entry.file.path)) : []
     const noteKey = outline.length > 0 && entry.file ? `${NOTE_KEY}${entry.file.path}` : ''
     columns.forEach((col, ci) => {
@@ -938,6 +943,8 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       const st = leaf.view.getState() as { mode?: string; source?: boolean }
       state = { state: { mode: st.mode, source: st.source } }
     })
+    lastOpened.set(config.name, link)
+    container.querySelectorAll('.bcgt-last-opened').forEach((el) => el.removeClass('bcgt-last-opened'))
     void app.workspace.openLinkText(link, sourcePath, newLeaf, state).then(() => {
       if (label) unfoldTarget(label)
     })
@@ -952,9 +959,14 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     markTouched()
     if (collapsed.has(key)) {
       collapsed.delete(key)
+      collapsed.add(OPEN_MARK + key)
     } else {
       collapsed.add(key)
-      for (const d of descendants.get(key) ?? []) collapsed.add(d)
+      collapsed.delete(OPEN_MARK + key)
+      for (const d of descendants.get(key) ?? []) {
+        collapsed.add(d)
+        collapsed.delete(OPEN_MARK + d)
+      }
     }
     applyAll()
   }
@@ -985,6 +997,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   // Fold marker in a note's (or outline heading's) first cell.
   const renderNoteToggle = (td: HTMLElement, noteKey: string): void => {
     allFoldKeys.add(noteKey)
+    allFoldKeys.add(OPEN_MARK + noteKey)
     noteKeys.push(noteKey)
     const chevron = td.createSpan('bcgt-chevron bcgt-note-chevron')
     setIcon(chevron, 'chevron-down')
@@ -1013,6 +1026,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       while (stack.length > 0 && stack[stack.length - 1][0] >= it.depth) stack.pop()
       const above = stack.map(([, k]) => k)
       const tr = tbody.createEl('tr', { cls: 'bcgt-row bcgt-outline-row' })
+      if (lastOpened.get(config.name) === path + it.link) tr.addClass('bcgt-last-opened')
       rowMeta.push({ el: tr, ancestors: [...ancestors, noteKey, ...above] })
       const td = tr.createEl('td', { cls: 'bcgt-cell bcgt-rail' })
       td.colSpan = columns.length
@@ -1212,14 +1226,10 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
   }
 
   // A note outline starts folded the first time this view shows it.
-  let seen = seenNoteKeys.get(collapsed)
-  if (!seen) {
-    seen = new Set<string>()
-    seenNoteKeys.set(collapsed, seen)
-  }
+  // Notes and outline headings start folded unless the reader opened them.
   for (const k of noteKeys) {
-    if (applyOpenDefault || !seen.has(k)) collapsed.add(k)
-    seen.add(k)
+    if (applyOpenDefault) collapsed.delete(OPEN_MARK + k)
+    if (!collapsed.has(OPEN_MARK + k)) collapsed.add(k)
   }
 
   // Forget any collapsed keys whose group/sub-group no longer exists.
