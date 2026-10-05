@@ -70,6 +70,13 @@ export default class CollapsingGroupTablePlugin extends Plugin {
             default: false,
           },
           {
+            type: 'text',
+            displayName: 'Exclude folders starting with',
+            key: 'excludeFolderPrefix',
+            default: '',
+            placeholder: '_',
+          },
+          {
             type: 'toggle',
             displayName: 'Split groupBy value on "/" to nest',
             key: 'subGroup',

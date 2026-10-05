@@ -27,4 +27,7 @@ export interface TableSettings {
   // Open notes in the view mode (Reading, Live Preview, Source) of the note
   // this view is embedded in.
   keepViewMode: boolean
+  // Exclude notes inside any folder whose name starts with this text (e.g. "_"
+  // for _templates, _archive). Empty = hide nothing.
+  excludeFolderPrefix: string
 }
