@@ -965,7 +965,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       depth,
       node.key,
       ancestors,
-      breadcrumb.join(' → '),
+      settings.nestedLabel === 'own' ? segLabel : breadcrumb.join(' → '),
       nodeTotal(node),
       node.children.size,
       treePrefix,
@@ -998,10 +998,12 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     topLevelKeys = tlk
     // Entries whose stripped group value is empty (files in the base's own
     // folder) render at the top, un-railed, with no group header.
-    if (rootEntries.length > 0) {
+    const renderRootEntries = (): void => {
+      if (rootEntries.length === 0) return
       const tbody = table.createEl('tbody', { cls: 'bcgt-group' })
       for (const entry of rootEntries) renderDataRow(tbody, entry, [], '')
     }
+    if (settings.rootEntries !== 'bottom') renderRootEntries()
     // Initialise sub-group folds per "when opening a group" for the default
     // (unsaved) state: open top groups get the open-behavior applied; collapsed
     // ones have their descendants collapsed too.
@@ -1020,6 +1022,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       console.log("tbody count (nested loop):", table.querySelectorAll("tbody").length);
       renderNode(tbody, root, 0, [], [], '', true);
     }
+    if (settings.rootEntries === 'bottom') renderRootEntries()
   } else {
     // Flat: one tbody per Bases group (sub-grouping off, or no groupBy). No tree
     // connectors here — the empty prefix keeps rows un-railed.
