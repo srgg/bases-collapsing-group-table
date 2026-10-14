@@ -879,14 +879,15 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     const row = tbody.createEl('tr', { cls: 'bcgt-row' })
     rowMeta.push({ el: row, ancestors })
     if (entry.file && lastOpened.get(config.name) === entry.file.path) row.addClass('bcgt-last-opened')
-    // A link clicked inside the row (a link column or formula) marks the row as
-    // last opened too, so navigating back shows where the reader came from.
+    // Pressing anywhere on the row selects it: an empty cell, a value, or a link
+    // inside it. The press comes before Obsidian opens a link, so the selection
+    // survives navigating away and back.
     if (entry.file) {
       const rowPath = entry.file.path
       row.addEventListener(
-        'click',
+        'pointerdown',
         (evt) => {
-          if (!(evt.target as HTMLElement).closest('a, .internal-link')) return
+          if (evt.button !== 0 && evt.button !== 1) return
           lastOpened.set(config.name, rowPath)
           container.querySelectorAll('.bcgt-last-opened').forEach((el) => el.removeClass('bcgt-last-opened'))
           row.addClass('bcgt-last-opened')
