@@ -965,7 +965,13 @@
 }
 
 /* The row last opened from this view, so the reader finds their place on return. */
-.bcgt-last-opened > td {
+/* Obsidian stripes every other column of tables in notes (--table-column-alt-background);
+   the view draws its own rows, so the stripes are switched off inside it. */
+.bcgt-table {
+  --table-column-alt-background: transparent;
+}
+
+.bcgt-table .bcgt-last-opened > td:nth-child(n) {
   box-shadow: inset 3px 0 0 var(--interactive-accent);
   background-color: var(--background-modifier-hover) !important;
 }
