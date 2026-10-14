@@ -967,5 +967,10 @@
 /* The row last opened from this view, so the reader finds their place on return. */
 .bcgt-last-opened > td {
   box-shadow: inset 3px 0 0 var(--interactive-accent);
-  background-color: var(--background-modifier-hover);
+  background-color: var(--background-modifier-hover) !important;
+}
+
+/* Every cell of the marked row takes the highlight, whatever its content draws. */
+.bcgt-last-opened > td .bcgt-cell-content {
+  background-color: transparent !important;
 }
