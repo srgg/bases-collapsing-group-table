@@ -870,6 +870,23 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     renderValue(inner, entry, col)
   }
 
+  // Pressing anywhere on a note or outline row selects it: an empty cell, a
+  // value, or a link inside it. The press comes before Obsidian opens a link, so
+  // the selection survives navigating away and back. `key` is what the row
+  // matches in `lastOpened` when the table is drawn again.
+  const bindSelect = (tr: HTMLElement, key: string): void => {
+    tr.addEventListener(
+      'pointerdown',
+      (evt) => {
+        if (evt.button !== 0 && evt.button !== 1) return
+        lastOpened.set(config.name, key)
+        container.querySelectorAll('.bcgt-last-opened').forEach((el) => el.removeClass('bcgt-last-opened'))
+        tr.addClass('bcgt-last-opened')
+      },
+      true,
+    )
+  }
+
   const renderDataRow = (
     tbody: HTMLElement,
     entry: BasesEntry,
@@ -879,22 +896,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     const row = tbody.createEl('tr', { cls: 'bcgt-row' })
     rowMeta.push({ el: row, ancestors })
     if (entry.file && lastOpened.get(config.name) === entry.file.path) row.addClass('bcgt-last-opened')
-    // Pressing anywhere on the row selects it: an empty cell, a value, or a link
-    // inside it. The press comes before Obsidian opens a link, so the selection
-    // survives navigating away and back.
-    if (entry.file) {
-      const rowPath = entry.file.path
-      row.addEventListener(
-        'pointerdown',
-        (evt) => {
-          if (evt.button !== 0 && evt.button !== 1) return
-          lastOpened.set(config.name, rowPath)
-          container.querySelectorAll('.bcgt-last-opened').forEach((el) => el.removeClass('bcgt-last-opened'))
-          row.addClass('bcgt-last-opened')
-        },
-        true,
-      )
-    }
+    if (entry.file) bindSelect(row, entry.file.path)
     const outline = settings.noteOutline && entry.file ? noteOutlineItems(app.metadataCache.getCache(entry.file.path)) : []
     const noteKey = outline.length > 0 && entry.file ? `${NOTE_KEY}${entry.file.path}` : ''
     columns.forEach((col, ci) => {
@@ -1040,6 +1042,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       const above = stack.map(([, k]) => k)
       const tr = tbody.createEl('tr', { cls: 'bcgt-row bcgt-outline-row' })
       if (lastOpened.get(config.name) === path + it.link) tr.addClass('bcgt-last-opened')
+      bindSelect(tr, path + it.link)
       rowMeta.push({ el: tr, ancestors: [...ancestors, noteKey, ...above] })
       const td = tr.createEl('td', { cls: 'bcgt-cell bcgt-rail' })
       td.colSpan = columns.length
