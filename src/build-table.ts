@@ -879,6 +879,21 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
     const row = tbody.createEl('tr', { cls: 'bcgt-row' })
     rowMeta.push({ el: row, ancestors })
     if (entry.file && lastOpened.get(config.name) === entry.file.path) row.addClass('bcgt-last-opened')
+    // A link clicked inside the row (a link column or formula) marks the row as
+    // last opened too, so navigating back shows where the reader came from.
+    if (entry.file) {
+      const rowPath = entry.file.path
+      row.addEventListener(
+        'click',
+        (evt) => {
+          if (!(evt.target as HTMLElement).closest('a')) return
+          lastOpened.set(config.name, rowPath)
+          container.querySelectorAll('.bcgt-last-opened').forEach((el) => el.removeClass('bcgt-last-opened'))
+          row.addClass('bcgt-last-opened')
+        },
+        true,
+      )
+    }
     const outline = settings.noteOutline && entry.file ? noteOutlineItems(app.metadataCache.getCache(entry.file.path)) : []
     const noteKey = outline.length > 0 && entry.file ? `${NOTE_KEY}${entry.file.path}` : ''
     columns.forEach((col, ci) => {
