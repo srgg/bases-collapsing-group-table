@@ -886,7 +886,7 @@ const buildTable = (container: HTMLElement, args: BuildTableArgs): void => {
       row.addEventListener(
         'click',
         (evt) => {
-          if (!(evt.target as HTMLElement).closest('a')) return
+          if (!(evt.target as HTMLElement).closest('a, .internal-link')) return
           lastOpened.set(config.name, rowPath)
           container.querySelectorAll('.bcgt-last-opened').forEach((el) => el.removeClass('bcgt-last-opened'))
           row.addClass('bcgt-last-opened')
